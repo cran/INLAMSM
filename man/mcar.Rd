@@ -2,9 +2,17 @@
 % Please edit documentation in R/MCAR_rgeneric.R
 \name{inla.rgeneric.MCAR.model}
 \alias{inla.rgeneric.MCAR.model}
+\alias{inla.MCAR.model}
 \title{\eqn{MCAR(\alpha, \Lambda)}: Proper multivariate CAR latent effect
 with a common autorcorrelation parameter.}
+\usage{
+inla.rgeneric.MCAR.model(cmd, theta)
+
+inla.MCAR.model(...)
+}
 \arguments{
+\item{...}{Arguments to be passed to 'inla.rgeneric.define'.}
+
 \item{cmd}{Arguments used by latent effects defined using the 'rgeneric'
 latent effect.}
 
@@ -97,18 +105,24 @@ k <- 2 * n.rep #Number of diseases
 alpha.min <- 0
 alpha.max <- 1
 
-#Define simple MCAR model
-model <- inla.rgeneric.define(inla.rgeneric.simple.MCAR.model, debug = TRUE,
-                              k = k, W = W,
-                              alpha.min = alpha.min, alpha.max = alpha.max)
+#Define MCAR model
+#model <- inla.rgeneric.define(inla.rgeneric.MCAR.model, debug = FALSE,
+#  k = k, W = W, alpha.min = alpha.min, alpha.max = alpha.max)
+model <- inla.MCAR.model(k = k, W = W, alpha.min = alpha.min, alpha.max = alpha.max)
 
 
 #Fit model
 r <- inla(OBS ~ 1 + f(idx, model = model),
-          data = d, E = EXP, family = "poisson",
-          control.predictor = list(compute = TRUE))
+  data = d, E = EXP, family = "poisson",
+  control.compute = list(config = TRUE),
+  control.predictor = list(compute = TRUE))
 
 summary(r)
+
+# Transformed parameters
+r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "PMCAR",
+  alpha.min = alpha.min, alpha.max = alpha.max)
+r.hyperpar$summary.hyperpar
 
 #Get fitted data, i.e., relative risk
 nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]

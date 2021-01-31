@@ -1,5 +1,5 @@
-#' @name inla.rgeneric.simple.MCAR.model
-#' @rdname simple.mcar
+#' @name inla.rgeneric.indep.MCAR.model
+#' @rdname indepmcar
 #'
 #' @title \eqn{MCAR(\alpha, \Lambda)}: Proper multivariate CAR latent effect
 #' without correlation parameters.
@@ -88,9 +88,9 @@
 #'alpha.min <- 0
 #'alpha.max <- 1
 #'
-#'#Define simple MCAR model
-#'model <- inla.rgeneric.define(inla.rgeneric.simple.MCAR.model,
-#'                              debug = TRUE, k = k, W = W,
+#'#Define independent MCAR model
+#'model <- inla.rgeneric.define(inla.rgeneric.indep.MCAR.model,
+#'                              debug = FALSE, k = k, W = W,
 #'                              alpha.min = alpha.min, alpha.max = alpha.max)
 #'
 #'
@@ -100,6 +100,11 @@
 #'          control.predictor = list(compute = TRUE))
 #'
 #'summary(r)
+#'
+#' # Transformed parameters
+#' r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "INDPMCAR",
+#'   alpha.min = alpha.min, alpha.max = alpha.max)
+#' r.hyperpar$summary.hyperpar
 #'
 #'#Get fitted data, i.e., relative risk
 #'nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]
@@ -185,11 +190,12 @@
 #'}
 #'
 #' @export
+#' @usage inla.rgeneric.indep.MCAR.model(cmd, theta)
 
 # Define previous variables as global to avoid warnings()
 utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
-'inla.rgeneric.simple.MCAR.model' <-
+'inla.rgeneric.indep.MCAR.model' <-
   function(cmd = c("graph", "Q", "mu", "initial", "log.norm.const",
                     "log.prior", "quit"), theta = NULL)
 {
@@ -201,7 +207,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
 
   #theta: autocorrelation param. alpha, tau1, tau2, ..., tauk = k+1 hyperparams
-  interpret.theta = function()
+  interpret.theta <- function()
   {
     # Function for changing from internal scale to external scale
     # also, build the precion matrix.
@@ -215,12 +221,12 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
     # Diagonal precion matrix
     PREC <- diag(mprec, k)
 
-    return (list(alpha = alpha, mprec=mprec, PREC = PREC))
+    return (list(alpha = alpha, mprec = mprec, PREC = PREC))
   }
 
 
   #Graph of precision function; i.e., a 0/1 representation of precision matrix
-  graph = function()
+  graph <- function()
   {
 
     PREC <- diag(1, k)
@@ -229,7 +235,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Precision matrix
-  Q = function()
+  Q <- function()
   {
     #Parameters in model scale
     param <- interpret.theta()
@@ -243,33 +249,33 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Mean of model
-  mu = function() {
+  mu <- function() {
     return(numeric(0))
   }
 
-  log.norm.const = function() {
+  log.norm.const <- function() {
     ## return the log(normalising constant) for the model
 
     val <- numeric(0)
     return (val)
   }
 
-  log.prior = function() {
+  log.prior <- function() {
     ## return the log-prior for the hyperparameters.
     ## Uniform prior in (alpha.min, alpha.max) on model scale
-    param = interpret.theta()
+    param <- interpret.theta()
 
     # log-Prior for the autocorrelation parameter
-    val = - theta[1L] - 2 * log(1 + exp(-theta[1L]))
+    val <- - theta[1L] - 2 * log(1 + exp(-theta[1L]))
 
     #Uniform priors on the standard deviations
     # log(constant_uniform) is ignored
-     val <- val - sum(theta) / 2 - k * log(2)
+     val <- val - sum(theta[as.integer(2:(k+1))]) / 2 - k * log(2)
 
     return (val)
   }
 
-  initial = function() {
+  initial <- function() {
     ## return initial values
 
     #Initial values
@@ -277,10 +283,32 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
   }
 
-  quit = function() {
+  quit <- function() {
     return (invisible())
   }
 
-  val = do.call(match.arg(cmd), args = list())
+    # FIX for rgeneric to work on R >= 4
+    # Provided by E. T. Krainski
+    if (as.integer(R.version$major) > 3) {
+      if (!length(theta))
+        theta = initial()
+    } else {
+      if (is.null(theta)) {
+        theta <- initial()
+      }
+    }
+
+
+
+  val <- do.call(match.arg(cmd), args = list())
   return (val)
+}
+
+##' @rdname indepmcar
+##' @param ...  Arguments to be passed to 'inla.rgeneric.define'.
+##' @export
+##' @usage inla.INDMCAR.model(...)
+
+inla.INDMCAR.model <- function(...) {
+  INLA::inla.rgeneric.define(inla.rgeneric.indep.MCAR.model, ...)
 }

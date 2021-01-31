@@ -2,9 +2,17 @@
 % Please edit documentation in R/Mmodel_CAR_rgeneric.R
 \name{inla.rgeneric.Mmodel.model}
 \alias{inla.rgeneric.Mmodel.model}
+\alias{inla.Mmodel.model}
 \title{M-model: Proper multivariate CAR latent effect with a different
 spatial autorcorrelation parameter for each disease.}
+\usage{
+inla.rgeneric.Mmodel.model(cmd, theta)
+
+inla.Mmodel.model(...)
+}
 \arguments{
+\item{...}{Arguments to be passed to 'inla.rgeneric.define'.}
+
 \item{cmd}{Arguments used by latent effects defined using the 'rgeneric'
 latent effect.}
 
@@ -97,7 +105,7 @@ alpha.max <- 1
 
 
 
-model <- inla.rgeneric.define(inla.rgeneric.Mmodel.model, debug = TRUE,
+model <- inla.rgeneric.define(inla.rgeneric.Mmodel.model, debug = FALSE,
                               k = k, W = W, alpha.min = alpha.min,
                               alpha.max = alpha.max)
 

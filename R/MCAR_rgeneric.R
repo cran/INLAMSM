@@ -91,18 +91,24 @@
 #' alpha.min <- 0
 #' alpha.max <- 1
 #'
-#' #Define simple MCAR model
-#' model <- inla.rgeneric.define(inla.rgeneric.simple.MCAR.model, debug = TRUE,
-#'                               k = k, W = W,
-#'                               alpha.min = alpha.min, alpha.max = alpha.max)
+#' #Define MCAR model
+#' #model <- inla.rgeneric.define(inla.rgeneric.MCAR.model, debug = FALSE,
+#' #  k = k, W = W, alpha.min = alpha.min, alpha.max = alpha.max)
+#' model <- inla.MCAR.model(k = k, W = W, alpha.min = alpha.min, alpha.max = alpha.max)
 #'
 #'
 #' #Fit model
 #' r <- inla(OBS ~ 1 + f(idx, model = model),
-#'           data = d, E = EXP, family = "poisson",
-#'           control.predictor = list(compute = TRUE))
+#'   data = d, E = EXP, family = "poisson",
+#'   control.compute = list(config = TRUE),
+#'   control.predictor = list(compute = TRUE))
 #'
 #' summary(r)
+#'
+#' # Transformed parameters
+#' r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "PMCAR",
+#'   alpha.min = alpha.min, alpha.max = alpha.max)
+#' r.hyperpar$summary.hyperpar
 #'
 #' #Get fitted data, i.e., relative risk
 #' nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]
@@ -189,9 +195,11 @@
 #' }
 #'
 #' @export
+#' @usage inla.rgeneric.MCAR.model(cmd, theta)
 
 # Define previous variables as global to avoid warnings()
 utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
+
 
 'inla.rgeneric.MCAR.model' <-
   function(cmd = c("graph", "Q", "mu", "initial", "log.norm.const",
@@ -207,7 +215,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
   #theta: 1 common correlation parameter alpha,
   #        (k + 1) * k / 2  for lower-tri matrix by col.
-  interpret.theta = function()
+  interpret.theta <- function()
   {
     #Function for changing from internal scale to external scale
     # also, build the inverse of the matrix used to model in the external scale
@@ -220,7 +228,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
     # the other parameters are the correlation parameters ordered by columns.
     mprec <- sapply(theta[as.integer(2:(k+1))], function(x) { exp(x) })
     corre <- sapply(theta[as.integer(-(1:(k+1)))], function(x) {
-      (2*exp(x))/(1 + exp(x)) - 1 })
+      (2 * exp(x))/(1 + exp(x)) - 1 })
 
     param <- c(alpha, mprec, corre)
 
@@ -252,7 +260,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
 
   #Graph of precision function; i.e., a 0/1 representation of precision matrix
-  graph = function()
+  graph <- function()
   {
 
     PREC <- matrix(1, ncol = k, nrow = k)
@@ -261,7 +269,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Precision matrix
-  Q = function()
+  Q <- function()
   {
     #Parameters in model scale
     param <- interpret.theta()
@@ -275,11 +283,11 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Mean of model
-  mu = function() {
+  mu <- function() {
     return(numeric(0))
   }
 
-  log.norm.const = function() {
+  log.norm.const <- function() {
     ## return the log(normalising constant) for the model
     #param = interpret.theta()
     #
@@ -290,23 +298,24 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
     return (val)
   }
 
-  log.prior = function() {
+  log.prior <- function() {
     ## return the log-prior for the hyperparameters.
     ## Uniform prior in (alpha.min, alpha.max) on model scale
-    param = interpret.theta()
+    param <- interpret.theta()
 
     # log-Prior for the autocorrelation parameter
-    val = - theta[1L] - 2 * log(1 + exp(-theta[1L]))
+    val <- - theta[1L] - 2 * log(1 + exp(-theta[1L]))
 
     # Whishart prior for joint matrix of hyperparameters
-    val = val
-    + log(MCMCpack::dwish(W = param$PREC, v = 2 * k + 1, S = diag(rep(1, k))))
-    + sum(theta[as.integer(2:(k+1))]) + log(param$param[as.integer(-(1:(k+1)))])
+    val <- val + 
+      log(MCMCpack::dwish(W = param$PREC, v =  k, S = diag(rep(1, k)))) +
+      sum(theta[as.integer(2:(k + 1))]) +  # This is for precisions
+      sum(log(2) + theta[-as.integer(1:(k + 1))] - 2 * log(1 + exp(theta[-as.integer(1:(k + 1))])))  # This is for correlation terms
 
     return (val)
   }
 
-  initial = function() {
+  initial <- function() {
     ## return initial values
 
     # The Initial values form a diagonal matrix
@@ -314,10 +323,32 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
   }
 
-  quit = function() {
+  quit <- function() {
     return (invisible())
   }
 
-  val = do.call(match.arg(cmd), args = list())
+  # FIX for rgeneric to work on R >= 4
+  # Provided by E. T. Krainski
+  if (as.integer(R.version$major) > 3) {
+    if (!length(theta))
+      theta = initial()
+  } else {
+    if (is.null(theta)) {
+      theta <- initial()
+    }
+  }
+
+
+  val <- do.call(match.arg(cmd), args = list())
   return (val)
   }
+
+##' @rdname mcar
+##' @param ...  Arguments to be passed to 'inla.rgeneric.define'.
+##' @export
+##' @usage inla.MCAR.model(...)
+
+inla.MCAR.model <- function(...) {
+  INLA::inla.rgeneric.define(inla.rgeneric.MCAR.model, ...)
+}
+

@@ -1,5 +1,5 @@
-#' @name inla.rgeneric.simple.IMCAR.model
-#' @rdname simple.imcar
+#' @name inla.rgeneric.indep.IMCAR.model
+#' @rdname indepimcar
 #'
 #' @title \eqn{MCAR(1, \Lambda)}: Intrinsic multivariate CAR latent effect
 #' without correlation parameters.
@@ -46,7 +46,7 @@
 #' require(spData)
 #' require(rgdal)
 #'
-#'## Simple IMCAR model with 2 diseases
+#'## Independent IMCAR model with 2 diseases
 #'
 #'#Load SIDS data
 #'nc.sids <- readOGR(system.file("shapes/sids.shp", package="spData")[1])
@@ -80,18 +80,26 @@
 #'# Model parameters: k and W
 #'k <- 2 * n.rep #Number of diseases
 #'
-#'#Define simple IMCAR model
-#'model <- inla.rgeneric.define(inla.rgeneric.simple.IMCAR.model, debug = TRUE,
+#'#Define independent IMCAR model
+#'model <- inla.rgeneric.define(inla.rgeneric.indep.IMCAR.model, debug = FALSE,
 #'                              k = k,
 #'                              W = W)
-#'
+#' 
+#' # Matrices for sum-to-zero constraints
+#' A <- kronecker(Diagonal(k, 1), Matrix(1, ncol = nrow(W), nrow = 1))
+#' e  = rep(0, k)
 #'
 #'#Fit multivariate model
-#'r <- inla(OBS ~ 1 + f(idx, model = model), # + NWPROP,
-#'          data = d, E = EXP, family = "poisson",
-#'          control.predictor = list(compute = TRUE))
+#'r <- inla(OBS ~ 1 + f(idx, model = model,
+#'       extraconstr = list(A = as.matrix(A), e = e)), # + NWPROP,
+#'  data = d, E = EXP, family = "poisson",
+#'  control.predictor = list(compute = TRUE))
 #'
 #'summary(r)
+#'
+#' # Transformed parameters
+#' r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "INDIMCAR")
+#' r.hyperpar$summary.hyperpar
 #'
 #'#Get fitted data, i.e., relative risk
 #'nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]
@@ -165,11 +173,12 @@
 #' }
 #' }
 #' @export
+#' @usage inla.rgeneric.indep.IMCAR.model(cmd, theta)
 
 # Define previous variables as global to avoid warnings()
 utils::globalVariables(c("k", "W"))
 
-'inla.rgeneric.simple.IMCAR.model' <-
+'inla.rgeneric.indep.IMCAR.model' <-
   function(cmd = c("graph", "Q", "mu", "initial", "log.norm.const",
                    "log.prior", "quit"), theta = NULL)
   {
@@ -180,7 +189,7 @@ utils::globalVariables(c("k", "W"))
 
 
     #theta: tau1, tau2, ...., tauk = k parameters.
-    interpret.theta = function()
+    interpret.theta <- function()
     {
       #Function for changing from internal scale to external scale. Also,
       #build the diagonal matrix used to model the between-disease variability.
@@ -196,7 +205,7 @@ utils::globalVariables(c("k", "W"))
 
 
     #Graph of precision function; i.e., a 0/1 representation of precision matrix
-    graph = function()
+    graph <- function()
     {
       # Diagonal precision matrix
       PREC <- diag(1, k)
@@ -205,7 +214,7 @@ utils::globalVariables(c("k", "W"))
     }
 
     #Precision matrix
-    Q = function()
+    Q <- function()
     {
       #Parameters in model scale
       param <- interpret.theta()
@@ -216,11 +225,11 @@ utils::globalVariables(c("k", "W"))
     }
 
     #Mean of model
-    mu = function() {
+    mu <- function() {
       return(numeric(0))
     }
 
-    log.norm.const = function() {
+    log.norm.const <- function() {
       ## return the log(normalising constant) for the model
       #param = interpret.theta()
       #
@@ -231,10 +240,10 @@ utils::globalVariables(c("k", "W"))
       return (val)
     }
 
-    log.prior = function() {
+    log.prior <- function() {
       ## return the log-prior for the hyperparameters.
       ## Uniform prior in (alpha.min, alpha.max) on model scale
-      param = interpret.theta()
+      param <- interpret.theta()
 
      #Uniform priors on the standard deviations
      # log(constant_uniform) is ignored
@@ -243,17 +252,38 @@ utils::globalVariables(c("k", "W"))
       return (val)
     }
 
-    initial = function() {
+    initial <- function() {
       ## return initial values
 
       # Initial values
       return( c(rep(log(1), k)) )
     }
 
-    quit = function() {
+    quit <- function() {
       return (invisible())
     }
 
-    val = do.call(match.arg(cmd), args = list())
+    # FIX for rgeneric to work on R >= 4
+    # Provided by E. T. Krainski
+    if (as.integer(R.version$major) > 3) {
+      if (!length(theta))
+        theta = initial()
+    } else {
+      if (is.null(theta)) {
+        theta <- initial()
+      }
+    }
+
+    val <- do.call(match.arg(cmd), args = list())
     return (val)
   }
+
+
+##' @rdname indepimcar
+##' @param ...  Arguments to be passed to 'inla.rgeneric.define'.
+##' @export
+##' @usage inla.INDIMCAR.model(...)
+
+inla.INDIMCAR.model <- function(...) {
+  INLA::inla.rgeneric.define(inla.rgeneric.indep.IMCAR.model, ...)
+}

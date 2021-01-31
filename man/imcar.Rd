@@ -2,8 +2,16 @@
 % Please edit documentation in R/IMCAR_rgeneric.R
 \name{inla.rgeneric.IMCAR.model}
 \alias{inla.rgeneric.IMCAR.model}
+\alias{inla.IMCAR.model}
 \title{\eqn{IMCAR(\Lambda)}: Intrinsic multivariate CAR latent effect.}
+\usage{
+inla.rgeneric.IMCAR.model(cmd, theta)
+
+inla.IMCAR.model(...)
+}
 \arguments{
+\item{...}{Arguments to be passed to 'inla.rgeneric.define'.}
+
 \item{cmd}{Arguments used by latent effects defined using the 'rgeneric'
 latent effect.}
 
@@ -72,6 +80,10 @@ nc.sids$EXP79 <- r79 * nc.sids$BIR79
 nc.sids$SMR79 <- nc.sids$SID79 / nc.sids$EXP79
 nc.sids$NWPROP79 <- nc.sids$NWBIR79 / nc.sids$BIR79
 
+# Define sum-to-zero constraints
+A <- kronecker(Diagonal(2, 1), Matrix(1, ncol = nrow(W), nrow = 1))
+e  = rep(0, 2)
+
 # Data (replicated to assess scalability)
 
 #Real data
@@ -87,15 +99,21 @@ k <- 2 * n.rep #Number of diseases
 
 
 #Define model IMCAR
-model <- inla.rgeneric.define(inla.rgeneric.IMCAR.model, debug = TRUE,
-                              k = k, W = W)
+model <- inla.rgeneric.define(inla.rgeneric.IMCAR.model, debug = FALSE,
+  k = k, W = W)
 
 #Fit model
-r <- inla(OBS ~ 1 + f(idx, model = model), # + NWPROP,
-          data = d, E = EXP, family = "poisson",
-          control.predictor = list(compute = TRUE))
+r <- inla(OBS ~ 1 + f(idx, model = model,
+    extraconstr = list(A = as.matrix(A), e = e)), # + NWPROP,
+  data = d, E = EXP, family = "poisson",
+  control.compute = list(config = TRUE), 
+  control.predictor = list(compute = TRUE))
 
 summary(r)
+
+# Transformed parameters
+r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "IMCAR")
+r.hyperpar$summary.hyperpar
 
 #Get fitted data, i.e., relative risk
 nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]

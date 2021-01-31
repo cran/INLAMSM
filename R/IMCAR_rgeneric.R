@@ -65,6 +65,10 @@
 #' nc.sids$SMR79 <- nc.sids$SID79 / nc.sids$EXP79
 #' nc.sids$NWPROP79 <- nc.sids$NWBIR79 / nc.sids$BIR79
 #'
+#' # Define sum-to-zero constraints
+#' A <- kronecker(Diagonal(2, 1), Matrix(1, ncol = nrow(W), nrow = 1))
+#' e  = rep(0, 2)
+#'
 #' # Data (replicated to assess scalability)
 #'
 #' #Real data
@@ -80,16 +84,22 @@
 #'
 #'
 #' #Define model IMCAR
-#' model <- inla.rgeneric.define(inla.rgeneric.IMCAR.model, debug = TRUE,
-#'                               k = k, W = W)
+#' model <- inla.rgeneric.define(inla.rgeneric.IMCAR.model, debug = FALSE,
+#'   k = k, W = W)
 #'
 #' #Fit model
-#' r <- inla(OBS ~ 1 + f(idx, model = model), # + NWPROP,
-#'           data = d, E = EXP, family = "poisson",
-#'           control.predictor = list(compute = TRUE))
+#' r <- inla(OBS ~ 1 + f(idx, model = model,
+#'     extraconstr = list(A = as.matrix(A), e = e)), # + NWPROP,
+#'   data = d, E = EXP, family = "poisson",
+#'   control.compute = list(config = TRUE), 
+#'   control.predictor = list(compute = TRUE))
 #'
 #' summary(r)
 #'
+#' # Transformed parameters
+#' r.hyperpar <- inla.MCAR.transform(r, k = 2, model = "IMCAR")
+#' r.hyperpar$summary.hyperpar
+#' 
 #' #Get fitted data, i.e., relative risk
 #' nc.sids$FITTED74 <- r$summary.fitted.values[1:100, "mean"]
 #' nc.sids$FITTED79 <- r$summary.fitted.values[100 + 1:100, "mean"]
@@ -174,6 +184,7 @@
 #'
 #' @export
 #'
+#' @usage inla.rgeneric.IMCAR.model(cmd, theta)
 
 # Define previous variables as global to avoid warnings()
 utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
@@ -191,7 +202,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
 
   #theta: (k + 1) * k / 2  for lower-tri matrix by col.
-  interpret.theta = function()
+  interpret.theta <- function()
   {
     #Function for changing from internal scale to external scale
     # also, build the inverse of the matrix used to model in the external scale
@@ -233,7 +244,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
 
 
   #Graph of precision function; i.e., a 0/1 representation of precision matrix
-  graph = function()
+  graph <- function()
   {
 
     PREC <- matrix(1, ncol = k, nrow = k)
@@ -242,7 +253,7 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Precision matrix
-  Q = function()
+  Q <- function()
   {
     #Parameters in model scale
     param <- interpret.theta()
@@ -254,11 +265,11 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
   }
 
   #Mean of model
-  mu = function() {
+  mu <- function() {
     return(numeric(0))
   }
 
-  log.norm.const = function() {
+  log.norm.const <- function() {
     ## return the log(normalising constant) for the model
     #param = interpret.theta()
     #
@@ -269,30 +280,50 @@ utils::globalVariables(c("k", "W", "alpha.min", "alpha.max"))
     return (val)
   }
 
-  log.prior = function() {
+  log.prior <- function() {
     ## return the log-prior for the hyperparameters.
-    param = interpret.theta()
+    param <- interpret.theta()
 
     # Whishart prior for joint matrix of hyperparameters
-    val = log(
-           MCMCpack::dwish(W = param$PREC, v = 2 * k + 1, S = diag(rep(1, k)))
-           )
-          + sum(theta[as.integer(1:k)]) + log(param$param[as.integer(-(1:k))])
+    val <- 
+      log(MCMCpack::dwish(W = param$PREC, v = 2 * k + 1, S = diag(rep(1, k)))) +
+      sum(theta[as.integer(1:k)]) +  # This is for precisions
+      sum(log(2) + theta[-as.integer(1:k)] - 2 * log(1 + exp(theta[-as.integer(1:k)]))) # This is for correlation terms
 
     return (val)
   }
 
-  initial = function() {
+  initial <- function() {
     ## return initial values
 
     #Initial values form a diagonal matrix
     return ( c(rep(log(1), k), rep(0, (k * (k - 1) / 2))))
   }
 
-  quit = function() {
+  quit <- function() {
     return (invisible())
   }
 
-  val = do.call(match.arg(cmd), args = list())
+  # FIX for rgeneric to work on R >= 4
+  # Provided by E. T. Krainski
+  if (as.integer(R.version$major) > 3) {
+    if (!length(theta))
+      theta <- initial()
+  } else {
+    if (is.null(theta)) {
+      theta <- initial()
+    }
+  }
+
+  val <- do.call(match.arg(cmd), args = list())
   return (val)
 }
+
+##' @rdname imcar
+##' @param ...  Arguments to be passed to 'inla.rgeneric.define'.
+##' @export
+##' @usage inla.IMCAR.model(...)
+inla.IMCAR.model <- function(...) {
+  INLA::inla.rgeneric.define(inla.rgeneric.IMCAR.model, ...)
+}
+
