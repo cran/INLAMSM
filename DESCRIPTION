@@ -1,7 +1,7 @@
 Package: INLAMSM
 Type: Package
 Title: Multivariate Spatial Models with 'INLA'
-Version: 0.2-2
+Version: 0.2-3
 Authors@R: c(
     person(given = "Francisco",
            family = "Palmí-Perales", 
@@ -22,7 +22,7 @@ Authors@R: c(
 Maintainer: Virgilio Gómez-Rubio <Virgilio.Gomez@uclm.es>
 Description: Implementation of several multivariate areal latent effects for
     'INLA' using the 'rgeneric' latent effect (Palmí-Perales et al., 2019,
-    <arXiv:1909.10804>). The 'INLA' package can be downloaded from 
+    <doi:10.18637/jss.v098.i02>). The 'INLA' package can be downloaded from 
     <https://www.r-inla.org>. In particular, the package includes latent 
     effects ready to use for several multivariate spatial models:
     intrinsic CAR, proper CAR and the M-model (Botella-Rocamora
@@ -35,9 +35,9 @@ Depends: R (>= 3.5.0), Matrix, MCMCpack, sp, spdep
 Suggests: INLA, spData, rgdal
 Additional_repositories: https://inla.r-inla-download.org/R/stable
 NeedsCompilation: no
-Packaged: 2021-01-29 22:02:08 UTC; virgil
+Packaged: 2021-06-03 22:46:45 UTC; root
 Author: Francisco Palmí-Perales [aut],
   Virgilio Gómez-Rubio [aut, cre],
   Miguel A. Martinez-Beneito [aut]
 Repository: CRAN
-Date/Publication: 2021-01-31 16:40:02 UTC
+Date/Publication: 2021-06-04 08:40:06 UTC
